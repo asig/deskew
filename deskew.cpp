@@ -20,6 +20,7 @@
 
 const int RESIZED_HEIGHT = 1200;
 const int BW_THRESHOLD = 60;
+const double OUTLIER_PERCENTAGE = 0.05;
 
 const cv::Scalar RED = cv::Scalar(0, 0, 255);
 const cv::Scalar GREEN = cv::Scalar(0, 255, 0);
@@ -110,7 +111,7 @@ float compute_skew(const cv::Mat& img) {
 
   // sort good lines by angle, and skip the outlying 2% (on each side)
   std::sort(good_lines.begin(), good_lines.end(), angle_less_than);
-  int to_skip = good_lines.size() * 0.02;
+  int to_skip = good_lines.size() * OUTLIER_PERCENTAGE;
   double total_angle = 0.0;
   for (int i = to_skip; i < good_lines.size() - to_skip; i++) {
     total_angle += angle(good_lines[i]);
