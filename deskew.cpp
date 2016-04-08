@@ -14,12 +14,18 @@ float compute_skew(const cv::Mat& img)
 {
   // resize image to something reasonable
   cv::Size size = img.size();
-  cv::Size new_size( ((float)size.width)/size.height*RESIZED_HEIGHT, RESIZED_HEIGHT);
   cv::Mat resized;
-  cv::resize(img, resized, new_size);
+  if (size.height > RESIZED_HEIGHT) {
+    cv::Size new_size( ((float)size.width)/size.height*RESIZED_HEIGHT, RESIZED_HEIGHT);
+    cv::resize(img, resized, new_size);
+  } else {
+    resized = img;
+  }
 
   // Convert it to white on black
-  cv::cvtColor(resized, resized, CV_BGR2GRAY);
+  if (resized.channels() > 1) {
+    cv::cvtColor(resized, resized, CV_BGR2GRAY);
+  }
   cv::bitwise_not(resized, resized);
   resized = resized > BW_THRESHOLD;
 
@@ -29,7 +35,7 @@ float compute_skew(const cv::Mat& img)
   std::vector<cv::Vec4i> lines; 
   cv::HoughLinesP(resized, lines, 1, CV_PI/180, 100, size.width/50.f, 20); 
   
-  cv::Mat disp_lines(new_size, CV_8UC3, cv::Scalar(0, 0, 0));
+  cv::Mat disp_lines(resized.size(), CV_8UC3, cv::Scalar(0, 0, 0));
 
   // Filter and show lines
   double total_angle = 0.;
@@ -79,7 +85,8 @@ int main(int argc, char** argv) {
     cv::Mat dst;
     cv::Point2f pc(orig.cols/2., orig.rows/2.);
     cv::Mat r = cv::getRotationMatrix2D(pc, skew * 180 / CV_PI, 1.0);
-    cv::warpAffine(orig, dst, r, orig.size()); // what size I should use?
+    cv::warpAffine(orig, dst, r, orig.size(), cv::INTER_LINEAR + CV_WARP_FILL_OUTLIERS, cv::BORDER_CONSTANT, cv::Scalar(255, 255, 255));
+
     cv::imwrite(destfile, dst);
     showImage("Corrected", dst);
   }
