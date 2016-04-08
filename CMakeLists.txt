@@ -1,0 +1,5 @@
+cmake_minimum_required(VERSION 2.8)
+project( deskew )
+find_package( OpenCV REQUIRED )
+add_executable( deskew deskew.cpp )
+target_link_libraries( deskew ${OpenCV_LIBS} )
