@@ -1,8 +1,6 @@
 #include <iostream>
 #include <opencv2/opencv.hpp>
 
-using namespace std;
-
 const int RESIZED_HEIGHT = 1200;
 const int BW_THRESHOLD = 60;
 
@@ -12,18 +10,16 @@ void showImage(const std::string& name, cv::Mat& img) {
   cv::destroyWindow(name);
 }
 
-void compute_skew(const char* filename)
+float compute_skew(const cv::Mat& img)
 {
-  // Load in grayscale.
-  cv::Mat src = cv::imread(filename, 0);
-
   // resize image to something reasonable
-  cv::Size size = src.size();
+  cv::Size size = img.size();
   cv::Size new_size( ((float)size.width)/size.height*RESIZED_HEIGHT, RESIZED_HEIGHT);
   cv::Mat resized;
-  cv::resize(src, resized, new_size);
+  cv::resize(img, resized, new_size);
 
   // Convert it to white on black
+  cv::cvtColor(resized, resized, CV_BGR2GRAY);
   cv::bitwise_not(resized, resized);
   resized = resized > BW_THRESHOLD;
 
@@ -56,15 +52,15 @@ void compute_skew(const char* filename)
     }
     total_angle /= lines_used; // mean angle, in radians.
 
-    cout << nb_lines << " lines in total, " << (nb_lines - lines_used) << " lines ignored." << endl;
- 
-    std::cout << "File " << filename << ": " << total_angle * 180 / CV_PI << std::endl;
+    std::cout << nb_lines << " lines in total, " << (nb_lines - lines_used) << " lines ignored." << std::endl;
  
     showImage("Lines", disp_lines);
+
+    return total_angle;
 }
 
 void usage() {
-  cout << "usage: deskew <origfile> <destfile> [<origfile> <destfile> ...]" << endl;
+  std::cout << "usage: deskew <origfile> <destfile> [<origfile> <destfile> ...]" << std::endl;
 }
 
 int main(int argc, char** argv) {
@@ -75,6 +71,16 @@ int main(int argc, char** argv) {
   for (int i = 1; i < argc; i+=2) {
     char *srcfile = argv[i];
     char *destfile = argv[i+1];
-    compute_skew(srcfile);
+
+    cv::Mat orig = cv::imread(srcfile, CV_LOAD_IMAGE_UNCHANGED);
+    float skew = compute_skew(orig);
+    std::cout << "Skew is " << skew * 180 / CV_PI << " degrees" << std::endl;
+ 
+    cv::Mat dst;
+    cv::Point2f pc(orig.cols/2., orig.rows/2.);
+    cv::Mat r = cv::getRotationMatrix2D(pc, skew * 180 / CV_PI, 1.0);
+    cv::warpAffine(orig, dst, r, orig.size()); // what size I should use?
+    cv::imwrite(destfile, dst);
+    showImage("Corrected", dst);
   }
 }
