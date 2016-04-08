@@ -1,17 +1,60 @@
+/*
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+    Copyright 2016 Andreas Signer <asigner@gmail.com>
+*/
+
 #include <iostream>
 #include <opencv2/opencv.hpp>
 
 const int RESIZED_HEIGHT = 1200;
 const int BW_THRESHOLD = 60;
 
-void showImage(const std::string& name, cv::Mat& img) {
+const cv::Scalar RED = cv::Scalar(0, 0, 255);
+const cv::Scalar GREEN = cv::Scalar(0, 255, 0);
+const cv::Scalar WHITE = cv::Scalar(255, 255, 255);
+
+using std::vector;
+
+void show_image(const std::string& name, cv::Mat& img) {
   cv::imshow(name, img);  
   cv::waitKey(0);
   cv::destroyWindow(name);
 }
 
-float compute_skew(const cv::Mat& img)
-{
+float angle(const cv::Vec4i& line) {
+  double dx = line[2] - line[0];
+  double dy = line[3] - line[1];
+  return atan2(dy, dx);
+}
+
+float deg(float angle) {  
+  return angle * 180 / CV_PI;
+}
+
+void filter_lines(const vector<cv::Vec4i>& in, vector<cv::Vec4i>& good_lines, vector<cv::Vec4i>& bad_lines) {
+  for (unsigned i = 0; i < in.size(); ++i) {
+        double a = angle(in[i]);
+        if (deg(a) > -15 && deg(a) < 15) {
+          good_lines.push_back(in[i]);
+        } else {
+          bad_lines.push_back(in[i]);
+        }
+    }
+}
+
+float compute_skew(const cv::Mat& img) {
   // resize image to something reasonable
   cv::Size size = img.size();
   cv::Mat resized;
@@ -29,40 +72,31 @@ float compute_skew(const cv::Mat& img)
   cv::bitwise_not(resized, resized);
   resized = resized > BW_THRESHOLD;
 
-  showImage("Resized and b/w", resized);
+  show_image("Resized and b/w", resized);
 
   // Compute lines     
   std::vector<cv::Vec4i> lines; 
-  cv::HoughLinesP(resized, lines, 1, CV_PI/180, 100, size.width/50.f, 20); 
-  
-  cv::Mat disp_lines(resized.size(), CV_8UC3, cv::Scalar(0, 0, 0));
+  cv::HoughLinesP(resized, lines, 1, CV_PI/180, 200, size.width/50.f, 20); 
 
   // Filter and show lines
+  cv::Mat disp_lines(resized.size(), CV_8UC3, cv::Scalar(0, 0, 0));
+  std::vector<cv::Vec4i> good_lines, bad_lines; 
+  filter_lines(lines, good_lines, bad_lines);
+
   double total_angle = 0.;
-  unsigned nb_lines = lines.size();
-  unsigned int lines_used = 0;
-  const cv::Scalar RED = cv::Scalar(0, 0, 255);
-  const cv::Scalar GREEN = cv::Scalar(0, 255, 0);
-  for (unsigned i = 0; i < nb_lines; ++i) {
-        double angle = atan2((double)lines[i][3] - lines[i][1],
-                    (double)lines[i][2] - lines[i][0]);
-        double angle_deg = angle * 180 / CV_PI;
-        if (angle_deg > -15 && angle_deg < 15) {
-          cv::line(disp_lines, cv::Point(lines[i][0], lines[i][1]), cv::Point(lines[i][2], lines[i][3]), GREEN);
-          total_angle += angle;
-          lines_used++;
-        } else {
-          cv::line(disp_lines, cv::Point(lines[i][0], lines[i][1]), cv::Point(lines[i][2], lines[i][3]), RED);
-        }
+  for (auto& line : good_lines) {
+    total_angle += angle(line);
+    cv::line(disp_lines, cv::Point(line[0], line[1]), cv::Point(line[2], line[3]), GREEN);
+  }
+  total_angle /= good_lines.size();  
+  for (auto& line : bad_lines) {
+    cv::line(disp_lines, cv::Point(line[0], line[1]), cv::Point(line[2], line[3]), RED);
+  }
+  show_image("Lines", disp_lines);
 
-    }
-    total_angle /= lines_used; // mean angle, in radians.
+  std::cout << lines.size() << " lines in total, " << bad_lines.size() << " lines ignored." << std::endl;
 
-    std::cout << nb_lines << " lines in total, " << (nb_lines - lines_used) << " lines ignored." << std::endl;
- 
-    showImage("Lines", disp_lines);
-
-    return total_angle;
+  return total_angle;
 }
 
 void usage() {
@@ -88,6 +122,6 @@ int main(int argc, char** argv) {
     cv::warpAffine(orig, dst, r, orig.size(), cv::INTER_LINEAR + CV_WARP_FILL_OUTLIERS, cv::BORDER_CONSTANT, cv::Scalar(255, 255, 255));
 
     cv::imwrite(destfile, dst);
-    showImage("Corrected", dst);
+    show_image("Corrected", dst);
   }
 }
