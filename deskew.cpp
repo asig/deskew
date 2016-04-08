@@ -23,6 +23,7 @@ const int BW_THRESHOLD = 60;
 
 const cv::Scalar RED = cv::Scalar(0, 0, 255);
 const cv::Scalar GREEN = cv::Scalar(0, 255, 0);
+const cv::Scalar BLUE = cv::Scalar(255, 0, 0);
 const cv::Scalar WHITE = cv::Scalar(255, 255, 255);
 
 using std::vector;
@@ -43,6 +44,10 @@ float deg(float angle) {
   return angle * 180 / CV_PI;
 }
 
+bool angle_less_than(const cv::Vec4i& l1, const cv::Vec4i& l2) { 
+  return angle(l1) < angle(l2);
+}
+
 void filter_lines(const vector<cv::Vec4i>& in, vector<cv::Vec4i>& good_lines, vector<cv::Vec4i>& bad_lines) {
   for (unsigned i = 0; i < in.size(); ++i) {
         double a = angle(in[i]);
@@ -52,6 +57,26 @@ void filter_lines(const vector<cv::Vec4i>& in, vector<cv::Vec4i>& good_lines, ve
           bad_lines.push_back(in[i]);
         }
     }
+}
+
+void draw_line(cv::Mat& img, const cv::Vec4i& line, const cv::Scalar& col ) {
+    cv::line(img, cv::Point(line[0], line[1]), cv::Point(line[2], line[3]), col);
+}
+
+void visualize_lines(cv::Mat& img, const vector<cv::Vec4i>& good_lines, const vector<cv::Vec4i>& bad_lines, int skipped_good_lines) {
+  for (int i = 0; i < skipped_good_lines; i++) {
+    draw_line(img, good_lines[i], BLUE);
+  }
+  for (int i = skipped_good_lines; i < good_lines.size() - skipped_good_lines; i++) {
+    draw_line(img, good_lines[i], GREEN);
+  }
+  for (int i = good_lines.size() - skipped_good_lines; i < good_lines.size(); i++) {
+    draw_line(img, good_lines[i], BLUE);
+  }
+  for (auto& line : bad_lines) {
+    draw_line(img, line, RED);
+  }
+  show_image("Lines", img);
 }
 
 float compute_skew(const cv::Mat& img) {
@@ -76,25 +101,26 @@ float compute_skew(const cv::Mat& img) {
 
   // Compute lines     
   std::vector<cv::Vec4i> lines; 
-  cv::HoughLinesP(resized, lines, 1, CV_PI/180, 200, size.width/50.f, 20); 
+  cv::HoughLinesP(resized, lines, 1, CV_PI/180, 100, size.width/50.f, 20); 
 
   // Filter and show lines
-  cv::Mat disp_lines(resized.size(), CV_8UC3, cv::Scalar(0, 0, 0));
   std::vector<cv::Vec4i> good_lines, bad_lines; 
   filter_lines(lines, good_lines, bad_lines);
 
-  double total_angle = 0.;
-  for (auto& line : good_lines) {
-    total_angle += angle(line);
-    cv::line(disp_lines, cv::Point(line[0], line[1]), cv::Point(line[2], line[3]), GREEN);
-  }
-  total_angle /= good_lines.size();  
-  for (auto& line : bad_lines) {
-    cv::line(disp_lines, cv::Point(line[0], line[1]), cv::Point(line[2], line[3]), RED);
-  }
-  show_image("Lines", disp_lines);
 
-  std::cout << lines.size() << " lines in total, " << bad_lines.size() << " lines ignored." << std::endl;
+  // sort good lines by angle, and skip the outlying 2% (on each side)
+  std::sort(good_lines.begin(), good_lines.end(), angle_less_than);
+  int to_skip = good_lines.size() * 0.02;
+  double total_angle = 0.0;
+  for (int i = to_skip; i < good_lines.size() - to_skip; i++) {
+    total_angle += angle(good_lines[i]);
+  }
+  total_angle /= good_lines.size() - 2*to_skip;
+
+  cv::Mat disp_lines(resized.size(), CV_8UC3, cv::Scalar(0, 0, 0));
+  visualize_lines(disp_lines, good_lines, bad_lines, to_skip);
+
+  std::cout << lines.size() << " lines in total, " << bad_lines.size() + 2*to_skip << " lines ignored (" << bad_lines.size() << " bad lines)." << std::endl;
 
   return total_angle;
 }
