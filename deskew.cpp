@@ -29,6 +29,8 @@ const cv::Scalar WHITE = cv::Scalar(255, 255, 255);
 
 using std::vector;
 
+bool show_preview = false;
+
 void show_image(const std::string& name, cv::Mat& img) {
   cv::imshow(name, img);  
   cv::waitKey(0);
@@ -77,7 +79,9 @@ void visualize_lines(cv::Mat& img, const vector<cv::Vec4i>& good_lines, const ve
   for (auto& line : bad_lines) {
     draw_line(img, line, RED);
   }
-  show_image("Lines", img);
+  if (show_preview) {
+    show_image("Lines", img);
+  }
 }
 
 float compute_skew(const cv::Mat& img) {
@@ -98,7 +102,9 @@ float compute_skew(const cv::Mat& img) {
   cv::bitwise_not(resized, resized);
   resized = resized > BW_THRESHOLD;
 
-  show_image("Resized and b/w", resized);
+  if (show_preview) {
+    show_image("Resized and b/w", resized);
+  }
 
   // Compute lines     
   std::vector<cv::Vec4i> lines; 
@@ -127,17 +133,25 @@ float compute_skew(const cv::Mat& img) {
 }
 
 void usage() {
-  std::cout << "usage: deskew <origfile> <destfile> [<origfile> <destfile> ...]" << std::endl;
+  std::cout << "usage: deskew [-preview] <origfile> <destfile> [<origfile> <destfile> ...]" << std::endl;
 }
 
 int main(int argc, char** argv) {
-  if (argc < 2 || argc % 2 == 0) {
+  vector<std::string> files;
+  for (int i = 1; i < argc; i++) {
+    if (std::string(argv[i]) == "-preview") {
+      show_preview = true;
+    } else {
+      files.push_back(argv[i]);
+    }
+  }
+  if (files.size() < 2 || files.size() % 2 != 0) {
     usage();
     return 0;
   }
-  for (int i = 1; i < argc; i+=2) {
-    char *srcfile = argv[i];
-    char *destfile = argv[i+1];
+  for (int i = 0; i < files.size(); i+=2) {
+    std::string srcfile = files[i];
+    std::string destfile = files[i+1];
 
     cv::Mat orig = cv::imread(srcfile, CV_LOAD_IMAGE_UNCHANGED);
     float skew = compute_skew(orig);
@@ -149,6 +163,8 @@ int main(int argc, char** argv) {
     cv::warpAffine(orig, dst, r, orig.size(), cv::INTER_LINEAR + CV_WARP_FILL_OUTLIERS, cv::BORDER_CONSTANT, cv::Scalar(255, 255, 255));
 
     cv::imwrite(destfile, dst);
-    show_image("Corrected", dst);
+    if (show_preview) {
+      show_image("Corrected", dst);
+    }
   }
 }
