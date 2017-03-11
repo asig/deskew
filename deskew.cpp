@@ -114,7 +114,6 @@ float compute_skew(const cv::Mat& img) {
   std::vector<cv::Vec4i> good_lines, bad_lines; 
   filter_lines(lines, good_lines, bad_lines);
 
-
   // sort good lines by angle, and skip the outlying 2% (on each side)
   std::sort(good_lines.begin(), good_lines.end(), angle_less_than);
   int to_skip = good_lines.size() * OUTLIER_PERCENTAGE;
@@ -128,6 +127,12 @@ float compute_skew(const cv::Mat& img) {
   visualize_lines(disp_lines, good_lines, bad_lines, to_skip);
 
   std::cout << lines.size() << " lines in total, " << bad_lines.size() + 2*to_skip << " lines ignored (" << bad_lines.size() << " bad lines)." << std::endl;
+
+  double good_line_ratio = good_lines.size()/((double)lines.size());
+  if (good_line_ratio < 0.75) {
+    std::cout << "Good lines to lines ratio is " << good_line_ratio << ", refusing to compute a skew angle." << std::endl;
+    total_angle = 0;
+  }
 
   return total_angle;
 }
