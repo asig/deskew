@@ -30,6 +30,7 @@ const cv::Scalar WHITE = cv::Scalar(255, 255, 255);
 using std::vector;
 
 bool show_preview = false;
+bool quiet = false;
 
 void show_image(const std::string& name, cv::Mat& img) {
   cv::imshow(name, img);  
@@ -37,14 +38,15 @@ void show_image(const std::string& name, cv::Mat& img) {
   cv::destroyWindow(name);
 }
 
-float angle(const cv::Vec4i& line) {
-  double dx = line[2] - line[0];
-  double dy = line[3] - line[1];
-  return atan2(dy, dx);
-}
-
 float deg(float angle) {  
   return angle * 180 / CV_PI;
+}
+
+float angle(const cv::Vec4i& line) {    
+  double dx = line[2] - line[0];
+  double dy = line[3] - line[1];
+  double a = atan2(dy, dx);
+  return a;
 }
 
 bool angle_less_than(const cv::Vec4i& l1, const cv::Vec4i& l2) { 
@@ -53,8 +55,8 @@ bool angle_less_than(const cv::Vec4i& l1, const cv::Vec4i& l2) {
 
 void filter_lines(const vector<cv::Vec4i>& in, vector<cv::Vec4i>& good_lines, vector<cv::Vec4i>& bad_lines) {
   for (unsigned i = 0; i < in.size(); ++i) {
-        double a = angle(in[i]);
-        if (deg(a) > -15 && deg(a) < 15) {
+        double a = deg(angle(in[i]);
+        if (a > -15 && a < 15) {
           good_lines.push_back(in[i]);
         } else {
           bad_lines.push_back(in[i]);
@@ -126,11 +128,15 @@ float compute_skew(const cv::Mat& img) {
   cv::Mat disp_lines(resized.size(), CV_8UC3, cv::Scalar(0, 0, 0));
   visualize_lines(disp_lines, good_lines, bad_lines, to_skip);
 
-  std::cout << lines.size() << " lines in total, " << bad_lines.size() + 2*to_skip << " lines ignored (" << bad_lines.size() << " bad lines)." << std::endl;
+  if (!quiet) {
+    std::cout << lines.size() << " lines in total, " << bad_lines.size() + 2*to_skip << " lines ignored (" << bad_lines.size() << " bad lines)." << std::endl;
+  }
 
   double good_line_ratio = good_lines.size()/((double)lines.size());
   if (good_line_ratio < 0.75) {
-    std::cout << "Good lines to lines ratio is " << good_line_ratio << ", refusing to compute a skew angle." << std::endl;
+    if (!quiet) {
+      std::cout << "Good lines to lines ratio is " << good_line_ratio << ", refusing to compute a skew angle." << std::endl;
+    }
     total_angle = 0;
   }
 
@@ -138,7 +144,7 @@ float compute_skew(const cv::Mat& img) {
 }
 
 void usage() {
-  std::cout << "usage: deskew [-preview] <origfile> <destfile> [<origfile> <destfile> ...]" << std::endl;
+  std::cout << "usage: deskew [-preview] [-quiet] <origfile> <destfile> [<origfile> <destfile> ...]" << std::endl;
 }
 
 int main(int argc, char** argv) {
@@ -146,6 +152,8 @@ int main(int argc, char** argv) {
   for (int i = 1; i < argc; i++) {
     if (std::string(argv[i]) == "-preview") {
       show_preview = true;
+    } else if (std::string(argv[i]) == "-quiet") {
+      quiet = true;
     } else {
       files.push_back(argv[i]);
     }
@@ -160,7 +168,9 @@ int main(int argc, char** argv) {
 
     cv::Mat orig = cv::imread(srcfile, CV_LOAD_IMAGE_UNCHANGED);
     float skew = compute_skew(orig);
-    std::cout << "Skew is " << skew * 180 / CV_PI << " degrees" << std::endl;
+    if (!quiet) {
+      std::cout << "Skew is " << skew * 180 / CV_PI << " degrees" << std::endl;
+    }
  
     cv::Mat dst;
     cv::Point2f pc(orig.cols/2., orig.rows/2.);
