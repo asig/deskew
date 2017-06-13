@@ -38,15 +38,28 @@ void show_image(const std::string& name, cv::Mat& img) {
   cv::destroyWindow(name);
 }
 
-float deg(float angle) {  
-  return angle * 180 / CV_PI;
-}
-
-float angle(const cv::Vec4i& line) {    
+float angle(const cv::Vec4i& line) {
   double dx = line[2] - line[0];
   double dy = line[3] - line[1];
-  double a = atan2(dy, dx);
+  if (dx < 0) {
+    // direction of the line is not relevant, make sure all lines point to the right
+    dx = -dx;
+    dy = -dy;
+  }
+  float a = atan2(dy, dx);
+  if (a > CV_PI/4) {
+    // assume line is vertical, rotate it by -90 deg
+    a -= CV_PI/2;
+  } else if (a < -CV_PI/4) {
+    // assume line is vertical, rotate it by 90 deg
+    a += CV_PI/2;
+  }
+
   return a;
+}
+
+float deg(float angle) {  
+  return angle * 180 / CV_PI;
 }
 
 bool angle_less_than(const cv::Vec4i& l1, const cv::Vec4i& l2) { 
@@ -55,7 +68,7 @@ bool angle_less_than(const cv::Vec4i& l1, const cv::Vec4i& l2) {
 
 void filter_lines(const vector<cv::Vec4i>& in, vector<cv::Vec4i>& good_lines, vector<cv::Vec4i>& bad_lines) {
   for (unsigned i = 0; i < in.size(); ++i) {
-        double a = deg(angle(in[i]);
+        double a = deg(angle(in[i]));
         if (a > -15 && a < 15) {
           good_lines.push_back(in[i]);
         } else {
